@@ -2,14 +2,13 @@
 
 > **Synthetic test data — not genuine development activity.**
 
-This repository demonstrates Git commit-history and date handling. Generated commits are intentionally empty, backdated, and labelled as synthetic. They must not be represented as evidence of work performed during those dates.
+This repository contains a small utility for learning about Git commit timestamps and testing history-processing tools. Generated commits are empty, backdated, and labelled `[SYNTHETIC TEST DATA]`. They must never be presented as evidence of work performed during those dates or used to misrepresent a GitHub contribution record.
 
 ## What it does
 
-- Generates a configurable number of empty Git commits.
+- Generates a configurable number of empty Git commits for local testing.
 - Assigns reproducible, chronologically ordered author and committer timestamps.
 - Labels every generated commit with `[SYNTHETIC TEST DATA]`.
-- Operates only in this dedicated repository.
 - Supports a dry run before writing commits.
 - Does not push automatically.
 
@@ -18,7 +17,6 @@ This repository demonstrates Git commit-history and date handling. Generated com
 - Git 2.30+
 - Python 3.9+
 - A Git identity configured locally (`git config user.name` and `git config user.email`).
-- Use an email address verified on your GitHub account if you want commits attributed to that account.
 
 ## Quick start
 
@@ -29,47 +27,37 @@ git clone https://github.com/akhilalladi-code/github-synthetic-history.git
 cd github-synthetic-history
 ```
 
-Preview the requested 20,000-commit schedule (no commits are created):
+Preview a small test schedule without creating commits:
 
 ```bash
-python scripts/generate_history.py --count 20000 \
-  --start-date 2021-01-01 --end-date 2026-11-05 --dry-run
+python scripts/generate_history.py --count 10 --start-date 2026-01-01 --end-date 2026-01-10 --dry-run
 ```
 
-Generate the synthetic commits locally:
+For a local-only test, use a small count and a disposable clone. Review the script's options before executing it.
+
+## Verify local test data
+
+Count labelled synthetic commits:
 
 ```bash
-python scripts/generate_history.py --count 20000 \
-  --start-date 2021-01-01 --end-date 2026-11-05 --execute
+git log --format=%s | grep -c '^\[SYNTHETIC TEST DATA\]'
 ```
 
-The generator permits this repository's one initial disclosure commit and refuses to run if it already contains more than one commit. It never modifies other repositories.
-
-## Verify before publishing generated history
+Inspect the author and timestamps:
 
 ```bash
-git rev-list --count HEAD
-git log --oneline --decorate -5
+git log -5 --format='Author: %an <%ae>%nDate: %aI%nSubject: %s'
 ```
 
-The expected total after generation is 20,001 commits: one disclosure commit plus 20,000 labelled synthetic commits.
+## Publishing policy
 
-The generated history remains local until you explicitly run:
+**Do not push generated synthetic history to the public repository's default branch.** Keep generated test commits in a disposable local clone or a clearly isolated test branch that is not used to represent genuine project activity. The public default branch is intended to contain the generator, documentation, and genuine project changes only.
 
-```bash
-git push origin main
-```
-
-Review the output and disclosure before pushing.
-
-## GitHub contribution graph
-
-GitHub applies its own eligibility rules to contribution activity, including author email association, repository visibility/settings, and the default branch. Backdated commits do not guarantee contribution-graph entries. Synthetic history is not a substitute for genuine contributions and must not be represented as such.
+GitHub applies its own eligibility rules to contribution activity. Synthetic or backdated commits are not genuine contributions and must not be used to imply work that was not performed.
 
 ## Safety and scope
 
-- No existing repository is modified.
-- Generated commits do not change tracked files.
-- Every generated commit message is visibly labelled synthetic.
+- The generator is intended for testing, demonstrations, and learning Git history behavior.
+- Generated commits are empty and explicitly labelled as synthetic.
 - A fixed seed makes the date schedule reproducible.
-- Intended for testing, demonstrations, and learning Git history behavior.
+- Use a disposable clone; do not run synthetic-history generation in a real project repository.
