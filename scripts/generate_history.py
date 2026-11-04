@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Generate clearly labelled empty, backdated commits in this dedicated test repository.
+"""Create clearly labelled synthetic Git history in this dedicated test repository.
 
-This utility does not push. It permits one initial disclosure commit and refuses
-to run in a repository with a longer history.
+Generated commits are empty and backdated for Git-history testing only. This tool
+never pushes, never changes tracked files, and can resume after an interrupted run.
 """
 from __future__ import annotations
 
@@ -14,9 +14,13 @@ import sys
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 
+PREFIX = "[SYNTHETIC TEST DATA]"
+
 
 def git(*args: str, check: bool = True) -> str:
-    result = subprocess.run(["git", *args], text=True, capture_output=True, check=False)
+    result = subprocess.run(
+        ["git", *args], text=True, capture_output=True, check=False
+    )
     if check and result.returncode:
         raise RuntimeError(result.stderr.strip() or result.stdout.strip())
     return result.stdout.strip()
@@ -31,10 +35,12 @@ def parse_day(value: str) -> date:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--count", type=int, default=20_000)
+    parser.add_argument("--count", type=int, default=20_000,
+                        help="Total number of synthetic commits desired (default: 20000)")
     parser.add_argument("--start-date", type=parse_day, default=date(2021, 1, 1))
     parser.add_argument("--end-date", type=parse_day, default=date(2026, 11, 5))
-    parser.add_argument("--seed", type=int, default=20261105)
+    parser.add_argument("--seed", type=int, default=20261105,
+                        help="Fixed seed for a repeatable date schedule")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--dry-run", action="store_true")
     mode.add_argument("--execute", action="store_true")
@@ -48,10 +54,19 @@ def main() -> int:
         print("ERROR: Run this inside the dedicated Git repository.", file=sys.stderr)
         return 2
 
-    count_text = git("rev-list", "--count", "HEAD", check=False)
-    existing_count = int(count_text) if count_text.isdigit() else 0
-    if existing_count > 1:
-        print("ERROR: More than the initial disclosure commit exists. Refusing to rewrite history.", file=sys.stderr)
+    # Refuse to generate on top of uncommitted edits.
+    if git("status", "--porcelain"):
+        print("ERROR: Working tree is not clean. Commit or stash changes first.", file=sys.stderr)
+        return 2
+
+    history = git("log", "--format=%s").splitlines()
+    synthetic_done = sum(1 for subject in history if subject.startswith(PREFIX))
+    if synthetic_done > args.count:
+        print(
+            f"ERROR: Found {synthetic_done} labelled synthetic commits, "
+            f"which exceeds requested total {args.count}.",
+            file=sys.stderr,
+        )
         return 2
 
     name = git("config", "user.name", check=False)
@@ -61,25 +76,42 @@ def main() -> int:
         return 2
 
     start = datetime.combine(args.start_date, time.min, tzinfo=timezone.utc)
-    end_exclusive = datetime.combine(args.end_date + timedelta(days=1), time.min, tzinfo=timezone.utc)
+    end_exclusive = datetime.combine(
+        args.end_date + timedelta(days=1), time.min, tzinfo=timezone.utc
+    )
     span = int((end_exclusive - start).total_seconds())
     rng = random.Random(args.seed)
-    schedule = sorted(start + timedelta(seconds=rng.randrange(span)) for _ in range(args.count))
+    schedule = sorted(
+        start + timedelta(seconds=rng.randrange(span))
+        for _ in range(args.count)
+    )
+    remaining = args.count - synthetic_done
 
     print("SYNTHETIC TEST DATA — not genuine development activity.")
-    print(f"Repository: {Path.cwd()}")
-    print(f"Identity:   {name} <{email}>")
-    print(f"Count:      {args.count:,}")
-    print(f"Date range: {args.start_date} through {args.end_date} (UTC)")
-    print(f"Seed:       {args.seed}")
+    print(f"Repository:       {Path.cwd()}")
+    print(f"Identity:         {name} <{email}>")
+    print(f"Target synthetic: {args.count:,}")
+    print(f"Already present:  {synthetic_done:,}")
+    print(f"Remaining:        {remaining:,}")
+    print(f"Date range (UTC): {args.start_date} through {args.end_date}")
+    print(f"Seed:             {args.seed}")
+
     if args.dry_run:
         print("Dry run only; no commits were created.")
-        print("First planned date:", schedule[0].isoformat())
-        print("Last planned date: ", schedule[-1].isoformat())
+        if remaining:
+            print("Next planned date:", schedule[synthetic_done].isoformat())
+            print("Last planned date:", schedule[-1].isoformat())
+        else:
+            print("Target already reached; nothing to do.")
+        return 0
+
+    if remaining == 0:
+        print("Target already reached; no commits created.")
         return 0
 
     print("Creating commits. This may take several minutes...")
-    for index, stamp in enumerate(schedule, start=1):
+    for index in range(synthetic_done, args.count):
+        stamp = schedule[index]
         iso = stamp.strftime("%Y-%m-%dT%H:%M:%SZ")
         env = os.environ.copy()
         env.update({
@@ -90,16 +122,19 @@ def main() -> int:
             "GIT_AUTHOR_DATE": iso,
             "GIT_COMMITTER_DATE": iso,
         })
-        message = f"[SYNTHETIC TEST DATA] Generated history sample {index:05d}/{args.count:05d}"
+        message = f"{PREFIX} Generated history sample {index + 1:05d}/{args.count:05d}"
         subprocess.run(
             ["git", "commit", "--allow-empty", "-m", message],
-            env=env, stdout=subprocess.DEVNULL, check=True
+            env=env, stdout=subprocess.DEVNULL, check=True,
         )
-        if index % 500 == 0 or index == args.count:
-            print(f"Created {index:,}/{args.count:,}")
+        completed = index + 1
+        if completed % 250 == 0 or completed == args.count:
+            print(f"Created {completed:,}/{args.count:,}")
 
-    print("\nComplete. Verify with: git rev-list --count HEAD")
-    print("Review the history and disclosure before manually pushing.")
+    print("\nGeneration complete.")
+    print(f"Verify synthetic commits: git log --format=%s | grep -c '^{PREFIX}'")
+    print("Review the disclosure and history before manually pushing.")
+    print("This script does not push automatically.")
     return 0
 
 
