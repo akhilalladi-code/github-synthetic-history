@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create clearly labelled synthetic Git history in this dedicated test repository.
+"""Create clearly labelled synthetic Git history in an isolated test branch.
 
 Generated commits are empty and backdated for Git-history testing only. This tool
 never pushes, never changes tracked files, and can resume after an interrupted run.
@@ -15,6 +15,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 
 PREFIX = "[SYNTHETIC TEST DATA]"
+ALLOWED_BRANCH_PREFIX = "synthetic-test-"
 
 
 def git(*args: str, check: bool = True) -> str:
@@ -54,7 +55,16 @@ def main() -> int:
         print("ERROR: Run this inside the dedicated Git repository.", file=sys.stderr)
         return 2
 
-    # Refuse to generate on top of uncommitted edits.
+    branch = git("branch", "--show-current")
+    if not branch.startswith(ALLOWED_BRANCH_PREFIX):
+        print(
+            f"ERROR: Refusing to generate on branch '{branch}'. "
+            f"Create an isolated branch whose name starts with "
+            f"'{ALLOWED_BRANCH_PREFIX}'.",
+            file=sys.stderr,
+        )
+        return 2
+
     if git("status", "--porcelain"):
         print("ERROR: Working tree is not clean. Commit or stash changes first.", file=sys.stderr)
         return 2
@@ -71,8 +81,17 @@ def main() -> int:
 
     name = git("config", "user.name", check=False)
     email = git("config", "user.email", check=False)
-    if not name or not email:
-        print("ERROR: Configure git user.name and user.email first.", file=sys.stderr)
+    invalid_identity = (
+        not name or not email or "your " in name.lower()
+        or "your " in email.lower() or "example.com" in email.lower()
+        or "@" not in email
+    )
+    if invalid_identity:
+        print(
+            "ERROR: Configure a real Git name and a verified GitHub email "
+            "before generating commits.",
+            file=sys.stderr,
+        )
         return 2
 
     start = datetime.combine(args.start_date, time.min, tzinfo=timezone.utc)
@@ -89,6 +108,7 @@ def main() -> int:
 
     print("SYNTHETIC TEST DATA — not genuine development activity.")
     print(f"Repository:       {Path.cwd()}")
+    print(f"Branch:           {branch}")
     print(f"Identity:         {name} <{email}>")
     print(f"Target synthetic: {args.count:,}")
     print(f"Already present:  {synthetic_done:,}")
