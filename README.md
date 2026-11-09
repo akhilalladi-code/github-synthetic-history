@@ -1,3 +1,7 @@
+![SYNTHETIC HISTORY — Diwali 2026](./assets/diwali-banner.svg)
+
+<p align="center"><a href="https://akhilalladi-code.github.io/diwali-universe/"><strong>🪔 Explore Diwali Universe 2026 · Interactive celebration ↗</strong></a></p>
+
 # GitHub Synthetic History
 
 > **Synthetic test data — not genuine development activity.**
